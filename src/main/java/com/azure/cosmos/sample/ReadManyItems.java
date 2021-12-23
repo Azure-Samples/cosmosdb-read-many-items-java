@@ -57,8 +57,8 @@ public class ReadManyItems {
     AtomicReference<Double> totalRequestCharges = new AtomicReference<>((double) 0);
     AtomicReference<Double> totalEnhancedRequestCharges = new AtomicReference<>((double) 0);
 
-    public static final int NUMBER_OF_THREADS = 250;
-    public static final int NUMBER_OF_WRITES_PER_THREAD = 2;
+    public static final int NUMBER_OF_THREADS = 50;
+    public static final int NUMBER_OF_REQUESTS_PER_THREAD = 100;
 
     public void close() {
         client.close();
@@ -105,7 +105,7 @@ public class ReadManyItems {
         createContainerIfNotExists();
 
         //generate records to be read later by the two different methods
-        createManyItems(NUMBER_OF_THREADS,NUMBER_OF_WRITES_PER_THREAD);
+        createManyItems(NUMBER_OF_THREADS,NUMBER_OF_REQUESTS_PER_THREAD);
 
         //compare multi-threaded scatter/gather with using readMany
         System.out.println("Reading many items....");
@@ -179,7 +179,7 @@ public class ReadManyItems {
             list.add(id);
         }
         final ExecutorService es = Executors.newCachedThreadPool();
-        List<List<String>> lists = Lists.partition(list, NUMBER_OF_WRITES_PER_THREAD);
+        List<List<String>> lists = Lists.partition(list, NUMBER_OF_REQUESTS_PER_THREAD);
         final long totalStartTime = System.currentTimeMillis();
         for (List<String> splitList : lists) {
             final Runnable task = () -> {
@@ -221,7 +221,7 @@ public class ReadManyItems {
             list.add(id);
         }
         final ExecutorService es = Executors.newCachedThreadPool();
-        List<List<String>> lists = Lists.partition(list, NUMBER_OF_WRITES_PER_THREAD);
+        List<List<String>> lists = Lists.partition(list, NUMBER_OF_REQUESTS_PER_THREAD);
         final long totalStartTime = System.currentTimeMillis();
         for (List<String> splitList : lists) {
             final Runnable task = () -> {
