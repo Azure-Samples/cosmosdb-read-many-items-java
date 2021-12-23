@@ -95,7 +95,7 @@ public class ReadManyItems {
                 .endpoint(AccountSettings.HOST)
                 .key(AccountSettings.MASTER_KEY)
                 // Setting the preferred location to Cosmos DB Account region
-                // West US is just an example. User should set preferred location to the Cosmos
+                // UK South is just an example. User should set preferred location to the Cosmos
                 // DB region closest to the application
                 .preferredRegions(Collections.singletonList("UK South"))
                 .consistencyLevel(ConsistencyLevel.EVENTUAL)
