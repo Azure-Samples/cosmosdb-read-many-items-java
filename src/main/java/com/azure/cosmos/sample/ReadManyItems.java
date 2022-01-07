@@ -137,7 +137,7 @@ public class ReadManyItems {
         System.out.println("Total latency with standard multi-threading: " + totalReadLatency);
         System.out.println("Total latency using readMany method: " + totalEnhancedReadLatency);
         System.out.println(
-                "Total request charges with standard multi-threading totalRequestCharges: " + totalRequestCharges);
+                "Total request charges with standard multi-threading: " + totalRequestCharges);
         System.out.println("Total request charges using readMany method: " + totalEnhancedRequestCharges);
     }
 
