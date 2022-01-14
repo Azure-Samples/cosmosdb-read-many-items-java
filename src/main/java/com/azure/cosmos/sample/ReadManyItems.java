@@ -28,24 +28,24 @@ import java.util.List;
 import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BinaryOperator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ReadManyItems {
 
     private static CosmosAsyncClient client;
 
     private final String databaseName = "ReadManyItemsDB";
-    private final String containerName = "Container4";
+    private final String containerName = "CosmosContainer";
 
     private CosmosAsyncDatabase database;
     private CosmosAsyncContainer container;
 
     Queue<String> docIDs = new ConcurrentLinkedQueue<String>();
-    private static AtomicBoolean resources_created = new AtomicBoolean(false);
     AtomicInteger exceptionCount = new AtomicInteger(0);
     AtomicLong insertCount = new AtomicLong(0);
     AtomicInteger recordCount = new AtomicInteger(0);
@@ -56,11 +56,13 @@ public class ReadManyItems {
     AtomicReference<Double> totalRequestCharges = new AtomicReference<>((double) 0);
     AtomicReference<Double> totalEnhancedRequestCharges = new AtomicReference<>((double) 0);
     private static AtomicInteger number_docs_inserted = new AtomicInteger(0);
-    private static AtomicInteger number_docs_read = new AtomicInteger(0);
+    private static AtomicInteger request_count = new AtomicInteger(0);
 
     public static final int NUMBER_OF_DOCS = 1000;
     public static final int NUMBER_OF_DOCS_PER_THREAD = 100;
     public ArrayList<JsonNode> docs;
+
+    private final static Logger logger = LoggerFactory.getLogger(ReadManyItems.class);
 
     public void close() {
         client.close();
@@ -77,11 +79,11 @@ public class ReadManyItems {
 
         try {
             p.readManyItemsDemo();
-            System.out.println("Demo complete, please hold while resources are released");
+            logger.info("Demo complete, please hold while resources are released");
         } catch (Exception e) {
-            System.out.println("Cosmos getStarted failed with: " + e);
+            logger.info("Cosmos getStarted failed with: " + e);
         } finally {
-            System.out.println("Closing the client");
+            logger.info("Closing the client");
             p.close();
         }
         System.exit(0);
@@ -89,7 +91,7 @@ public class ReadManyItems {
     // </Main>
 
     private void readManyItemsDemo() throws Exception {
-        System.out.println("Using Azure Cosmos DB endpoint: " + AccountSettings.HOST);
+        logger.info("Using Azure Cosmos DB endpoint: " + AccountSettings.HOST);
         docs = generateDocs(NUMBER_OF_DOCS);
         client = new CosmosClientBuilder()
                 .endpoint(AccountSettings.HOST)
@@ -99,46 +101,37 @@ public class ReadManyItems {
                 // DB region closest to the application
                 .preferredRegions(Collections.singletonList("UK South"))
                 .consistencyLevel(ConsistencyLevel.SESSION)
+                .contentResponseOnWriteEnabled(true)
+                .directMode()
                 .buildAsyncClient();
 
         Mono<Void> databaseContainerIfNotExist = client.createDatabaseIfNotExists(databaseName)
                 .flatMap(databaseResponse -> {
                     database = client.getDatabase(databaseResponse.getProperties().getId());
-                    System.out.println("\n\n\n\nCreated database ReadManyItemsDB.\n\n\n\n");
+                    logger.info("\n\n\n\nCreated database ReadManyItemsDB.\n\n\n\n");
                     CosmosContainerProperties containerProperties = new CosmosContainerProperties(containerName, "/id");
-                    ThroughputProperties throughputProperties = ThroughputProperties.createManualThroughput(10000);
+                    ThroughputProperties throughputProperties = ThroughputProperties.createManualThroughput(15000);
                     return database.createContainerIfNotExists(containerProperties, throughputProperties);
                 }).flatMap(containerResponse -> {
                     container = database.getContainer(containerResponse.getProperties().getId());
-                    System.out.println("\n\n\n\nCreated container Container.\n\n\n\n");
+                    logger.info("\n\n\n\nCreated container Container.\n\n\n\n");
                     return Mono.empty();
                 });
 
-        System.out.println("Creating database and container asynchronously...");
-        databaseContainerIfNotExist.subscribe(voidItem -> {
-        }, err -> {
-        },
-                () -> {
-                    System.out.println("Finished creating resources.\n\n");
-                    resources_created.set(true);
-                });
-
-        while (!resources_created.get()) {
-            // do things async while creating resources...
-        }
+        logger.info("Creating database and container asynchronously...");
+        databaseContainerIfNotExist.block();
 
         createManyItems(docs, NUMBER_OF_DOCS, NUMBER_OF_DOCS_PER_THREAD);
 
-        System.out.println("Reading many items....");
+        logger.info("Reading many items....");
         readManyItems();
-        System.out.println("Reading many items (enhanced using readMany method)");
+        logger.info("Reading many items (enhanced using readMany method)");
         readManyItemsEnhanced();
 
-        System.out.println("Total latency with standard multi-threading: " + totalReadLatency);
-        System.out.println("Total latency using readMany method: " + totalEnhancedReadLatency);
-        System.out.println(
-                "Total request charges with standard multi-threading: " + totalRequestCharges);
-        System.out.println("Total request charges using readMany method: " + totalEnhancedRequestCharges);
+        logger.info("Total latency with standard multi-threading: " + totalReadLatency);
+        logger.info("Total latency using readMany method: " + totalEnhancedReadLatency);
+        logger.info("Total request charges with standard multi-threading: " + totalRequestCharges);
+        logger.info("Total request charges using readMany method: " + totalEnhancedRequestCharges);
     }
 
     private void createManyItems(ArrayList<JsonNode> docs, final int noOfDocs,
@@ -149,16 +142,18 @@ public class ReadManyItems {
                     if (itemResponse.getStatusCode() == 201) {
                         number_docs_inserted.getAndIncrement();
                     } else
-                        System.out.println("WARNING insert status code {} != 201" + itemResponse.getStatusCode());
+                        logger.info("WARNING insert status code {} != 201" + itemResponse.getStatusCode());
+                    request_count.incrementAndGet();
                     return Mono.empty();
                 }).subscribe(); // ...Subscribing to the publisher triggers stream execution.
-        System.out.println("Doing other things until async doc inserts complete...");
-        while (number_docs_inserted.get() < NUMBER_OF_DOCS) {
+
+        logger.info("Doing other things until async doc inserts complete...");
+        while (request_count.get() < NUMBER_OF_DOCS) {
         }
-        if (number_docs_inserted.get() == NUMBER_OF_DOCS) {
+        if (request_count.get() == NUMBER_OF_DOCS) {
+            request_count.set(0);
             final long endTime = System.currentTimeMillis();
             final long duration = (endTime - startTime);
-            System.out.print("total insert duration time millis: " + duration + "\n");
             this.totalLatency.getAndAdd(duration);
         }
 
@@ -170,24 +165,33 @@ public class ReadManyItems {
         for (final JsonNode doc : docs) {
             list.add(doc.get("id").asText());
         }
-        List<List<String>> lists = Lists.partition(list, NUMBER_OF_DOCS_PER_THREAD);
 
         final long startTime = System.currentTimeMillis();
-        Flux.fromIterable(lists).flatMapIterable(x -> x)
-                .flatMap(id -> container.readItem(id, new PartitionKey(id), JsonNode.class))
+        Flux.fromIterable(list)
+                .flatMap(id -> container.readItem(id, new PartitionKey(id), Item.class))
                 .flatMap(itemResponse -> {
                     if (itemResponse.getStatusCode() == 200) {
                         double requestCharge = itemResponse.getRequestCharge();
                         BinaryOperator<Double> add = (u, v) -> u + v;
                         totalRequestCharges.getAndAccumulate(requestCharge, add);
-                        number_docs_read.getAndIncrement();
+
                     } else
-                        System.out.println("WARNING insert status code {} != 200" + itemResponse.getStatusCode());
+                        logger.info("WARNING insert status code {} != 200" + itemResponse.getStatusCode());
+                    request_count.getAndIncrement();
                     return Mono.empty();
                 }).subscribe();
-        final long endTime = System.currentTimeMillis();
-        final long duration = (endTime - startTime);
-        totalReadLatency.getAndAdd(duration);
+
+        logger.info("Waiting while subscribed async operation completes all threads...");
+        while (request_count.get() < NUMBER_OF_DOCS) {
+            // looping while subscribed async operation completes all threads
+        }
+        if (request_count.get() == NUMBER_OF_DOCS) {
+            request_count.set(0);
+            final long endTime = System.currentTimeMillis();
+            final long duration = (endTime - startTime);
+            totalReadLatency.getAndAdd(duration);
+        }
+
     }
 
     private void readManyItemsEnhanced() throws InterruptedException {
@@ -205,6 +209,8 @@ public class ReadManyItems {
 
             // add point reads in this thread as a list to be sent to Cosmos DB
             for (final String id : x) {
+                // increment request count here so that total requests will equal total docs
+                request_count.getAndIncrement();
                 pairList.add(Pair.of(String.valueOf(id), new PartitionKey(String.valueOf(id))));
             }
 
@@ -216,10 +222,19 @@ public class ReadManyItems {
             BinaryOperator<Double> add = (u, v) -> u + v;
             totalEnhancedRequestCharges.getAndAccumulate(requestCharge, add);
             return documentFeedResponse;
-        }).subscribe();
-        final long endTime = System.currentTimeMillis();
-        final long duration = (endTime - startTime);
-        totalEnhancedReadLatency.getAndAdd(duration);
+        })
+                .subscribe();
+
+        logger.info("Waiting while subscribed async operation completes all threads...");
+        while (request_count.get() < NUMBER_OF_DOCS) {
+            // looping while subscribed async operation completes all threads
+        }
+        if (request_count.get() == NUMBER_OF_DOCS) {
+            request_count.set(0);
+            final long endTime = System.currentTimeMillis();
+            final long duration = (endTime - startTime);
+            totalEnhancedReadLatency.getAndAdd(duration);
+        }
     }
 
     public static ArrayList<JsonNode> generateDocs(int N) {
@@ -235,7 +250,7 @@ public class ReadManyItems {
                                 "}"));
             }
         } catch (Exception err) {
-            System.out.println("Failed generating documents: " + err);
+            logger.error("Failed generating documents: ", err);
         }
 
         return docs;
