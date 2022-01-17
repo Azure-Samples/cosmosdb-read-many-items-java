@@ -14,16 +14,6 @@ public class Item {
     public void setId(String id) {
         this.id = id;
     }
-
-    public String getPk() {
-        return pk;
-    }
-
-    public void setPk(String lastName) {
-        this.pk = lastName;
-    }
-
     private String id;
-    private String pk;
 }
 
