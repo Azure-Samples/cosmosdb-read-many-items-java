@@ -204,7 +204,6 @@ public class ReadManyItems {
         final long startTime = System.currentTimeMillis();
         Flux.fromIterable(lists).flatMap(x -> {
 
-            //List<Pair<String, PartitionKey>> pairList = new ArrayList<>();
             List<CosmosItemIdentity> pairList = new ArrayList<>();
 
             // add point reads in this thread as a list to be sent to Cosmos DB
