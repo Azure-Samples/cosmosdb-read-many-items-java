@@ -18,7 +18,6 @@ import com.azure.cosmos.sample.common.AccountSettings;
 import com.azure.cosmos.sample.common.Item;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.collect.Lists;
 
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Flux;
@@ -32,6 +31,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BinaryOperator;
+
+import org.apache.commons.collections4.ListUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -200,7 +201,7 @@ public class ReadManyItems {
         for (final JsonNode doc : docs) {
             list.add(doc.get("id").asText());
         }
-        List<List<String>> lists = Lists.partition(list, NUMBER_OF_DOCS_PER_THREAD);
+        List<List<String>> lists = ListUtils.partition(list, NUMBER_OF_DOCS_PER_THREAD);
 
         final long startTime = System.currentTimeMillis();
         Flux.fromIterable(lists).flatMap(x -> {
