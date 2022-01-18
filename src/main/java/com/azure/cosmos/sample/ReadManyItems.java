@@ -8,11 +8,10 @@ import com.azure.cosmos.CosmosAsyncClient;
 import com.azure.cosmos.CosmosAsyncContainer;
 import com.azure.cosmos.CosmosAsyncDatabase;
 import com.azure.cosmos.CosmosClientBuilder;
-import com.azure.cosmos.implementation.ItemOperations;
 import com.azure.cosmos.implementation.Utils;
-import com.azure.cosmos.implementation.apachecommons.lang.tuple.Pair;
 import com.azure.cosmos.implementation.guava25.collect.Lists;
 import com.azure.cosmos.models.CosmosContainerProperties;
+import com.azure.cosmos.models.CosmosItemIdentity;
 import com.azure.cosmos.models.PartitionKey;
 import com.azure.cosmos.models.FeedResponse;
 import com.azure.cosmos.models.ThroughputProperties;
@@ -205,19 +204,19 @@ public class ReadManyItems {
         final long startTime = System.currentTimeMillis();
         Flux.fromIterable(lists).flatMap(x -> {
 
-            List<Pair<String, PartitionKey>> pairList = new ArrayList<>();
+            //List<Pair<String, PartitionKey>> pairList = new ArrayList<>();
+            List<CosmosItemIdentity> pairList = new ArrayList<>();
 
             // add point reads in this thread as a list to be sent to Cosmos DB
             for (final String id : x) {
                 // increment request count here so that total requests will equal total docs
                 request_count.getAndIncrement();
-                pairList.add(Pair.of(String.valueOf(id), new PartitionKey(String.valueOf(id))));
+                pairList.add(new CosmosItemIdentity(new PartitionKey(String.valueOf(id)), String.valueOf(id)));
             }
 
             // instead of reading sequentially, send CosmosItem id and partition key tuple
             // of items to be read
-            Mono<FeedResponse<Item>> documentFeedResponse = ItemOperations.readManyAsync(container,
-                    pairList, Item.class);
+            Mono<FeedResponse<Item>> documentFeedResponse = container.readMany(pairList, Item.class);                    
             double requestCharge = documentFeedResponse.block().getRequestCharge();
             BinaryOperator<Double> add = (u, v) -> u + v;
             totalEnhancedRequestCharges.getAndAccumulate(requestCharge, add);
