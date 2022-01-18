@@ -214,8 +214,7 @@ public class ReadManyItems {
                 pairList.add(new CosmosItemIdentity(new PartitionKey(String.valueOf(id)), String.valueOf(id)));
             }
 
-            // instead of reading sequentially, send CosmosItem id and partition key tuple
-            // of items to be read
+            // instead of reading sequentially, send CosmosItem id and partition key tuple of items to be read
             Mono<FeedResponse<Item>> documentFeedResponse = container.readMany(pairList, Item.class);                    
             double requestCharge = documentFeedResponse.block().getRequestCharge();
             BinaryOperator<Double> add = (u, v) -> u + v;
