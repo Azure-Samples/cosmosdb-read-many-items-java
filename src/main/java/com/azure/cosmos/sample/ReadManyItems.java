@@ -59,6 +59,7 @@ public class ReadManyItems {
     private static AtomicInteger number_docs_inserted = new AtomicInteger(0);
     private static AtomicInteger request_count = new AtomicInteger(0);
 
+    public static final int PROVISIONED_RUS = 15000;
     public static final int NUMBER_OF_DOCS = 1000;
     public static final int NUMBER_OF_DOCS_PER_THREAD = 100;
     public ArrayList<JsonNode> docs;
@@ -111,7 +112,7 @@ public class ReadManyItems {
                     database = client.getDatabase(databaseResponse.getProperties().getId());
                     logger.info("\n\n\n\nCreated database ReadManyItemsDB.\n\n\n\n");
                     CosmosContainerProperties containerProperties = new CosmosContainerProperties(containerName, "/id");
-                    ThroughputProperties throughputProperties = ThroughputProperties.createManualThroughput(15000);
+                    ThroughputProperties throughputProperties = ThroughputProperties.createManualThroughput(PROVISIONED_RUS);
                     return database.createContainerIfNotExists(containerProperties, throughputProperties);
                 }).flatMap(containerResponse -> {
                     container = database.getContainer(containerResponse.getProperties().getId());
@@ -122,7 +123,7 @@ public class ReadManyItems {
         logger.info("Creating database and container asynchronously...");
         databaseContainerIfNotExist.block();
 
-        createManyItems(docs, NUMBER_OF_DOCS, NUMBER_OF_DOCS_PER_THREAD);
+        createManyItems(docs);
 
         logger.info("Reading many items....");
         readManyItems();
@@ -135,8 +136,7 @@ public class ReadManyItems {
         logger.info("Total request charges using readMany method: " + totalEnhancedRequestCharges);
     }
 
-    private void createManyItems(ArrayList<JsonNode> docs, final int noOfDocs,
-            final int noOfDocsPerThread) throws Exception {
+    private void createManyItems(ArrayList<JsonNode> docs) throws Exception {
         final long startTime = System.currentTimeMillis();
         Flux.fromIterable(docs).flatMap(doc -> container.createItem(doc))
                 .flatMap(itemResponse -> {
